@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Download MangaBaka's OpenAPI document and apply the compatibility patches the
-Swift OpenAPI Generator needs. Run from the package root, then review the diff of
-Sources/MangaBakaSDK/openapi.json on its own before touching hand-written code.
+"""Download MangaBaka's OpenAPI document, apply the compatibility patches the
+Swift OpenAPI Generator needs, and regenerate the client. Review the diff of
+OpenAPI/openapi.json on its own before touching hand-written code.
 
 Source: https://mangabaka.org/api.json (the document the API Explorer at
 https://mangabaka.org/data/api/explorer loads).
 """
 import hashlib
 import json
+import os
+import subprocess
 import urllib.request
 
 SOURCE = "https://mangabaka.org/api.json"
-OUTPUT = "Sources/MangaBakaSDK/openapi.json"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUTPUT = os.path.join(ROOT, "OpenAPI", "openapi.json")
 
 
 def loosen(node):
@@ -117,6 +120,7 @@ def main():
         file.write("\n")
     print(f"Wrote {OUTPUT} ({len(spec['paths'])} paths)")
     print(f"Upstream {spec['info']['title']} {spec['info']['version']}, SHA-256 {hashlib.sha256(raw).hexdigest()}")
+    subprocess.run([os.path.join(ROOT, "Scripts", "generate.sh")], check=True)
 
 
 if __name__ == "__main__":

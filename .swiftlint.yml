@@ -67,6 +67,8 @@ included:
 
 excluded:
   - Package.swift
+  - Scripts
+  - Sources/MangaBakaSDK/Generated
 
 force_cast: error
 force_try: error

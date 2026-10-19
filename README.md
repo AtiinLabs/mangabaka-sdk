@@ -144,10 +144,11 @@ Responses served from its cache do not count. See [the API page](https://mangaba
 
 ## OpenAPI document
 
-The generated client comes from MangaBaka's OpenAPI document, built with
-[Swift OpenAPI Generator](https://github.com/apple/swift-openapi-generator) at build time. Only the
-operations listed in `Sources/MangaBakaSDK/openapi-generator-config.yaml` are generated, and
-`MangaBakaClient` is the public API; generated types are internal.
+The internal client in `Sources/MangaBakaSDK/Generated` is generated from MangaBaka's OpenAPI
+document by [Swift OpenAPI Generator](https://github.com/apple/swift-openapi-generator) and checked
+in, so apps using the SDK do not build the generator. Only the operations listed in
+`OpenAPI/openapi-generator-config.yaml` are generated, and `MangaBakaClient` is the public API;
+generated types are internal.
 
 | | |
 | --- | --- |
@@ -156,9 +157,11 @@ operations listed in `Sources/MangaBakaSDK/openapi-generator-config.yaml` are ge
 | Retrieved | 2026-10-19 |
 | Upstream SHA-256 | `022d0b60da69ba7a65e2777fd8188e2bd47d6a88f366cd5ed5d75c02130a9155` |
 
-`Sources/MangaBakaSDK/openapi.json` is that document with the compatibility patches in
-`Scripts/update-openapi.py` applied. To update it, run `python3 Scripts/update-openapi.py` from the
-package root, then review the document diff and run the tests.
+`OpenAPI/openapi.json` is that document with the compatibility patches in
+`Scripts/update-openapi.py` applied. To update it, run `python3 Scripts/update-openapi.py`, which
+also regenerates the client, then review the document diff and run the tests. After changing the
+generator configuration, run `Scripts/generate.sh`. CI fails when the generated client does not
+match the document.
 
 Not wrapped yet: recommendations, mix, discover lists, publishers, editions, works, stacks, user
 lists, Kitsu, MangaUpdates and Anime-Planet source lookups, and `PUT` library entries (currently

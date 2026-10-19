@@ -24,6 +24,12 @@ jobs:
     - name: Run tests
       run: swift test -v
 
+    - name: Check generated client
+      run: |
+        Scripts/generate.sh
+        git diff --exit-code -- Sources/MangaBakaSDK/Generated
+        test -z "$(git status --porcelain -- Sources/MangaBakaSDK/Generated)"
+
   lint:
     runs-on: ubuntu-latest
     steps:
