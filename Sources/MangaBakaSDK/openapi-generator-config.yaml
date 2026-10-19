@@ -1,0 +1,25 @@
+generate:
+  - types
+  - client
+accessModifier: internal
+namingStrategy: idiomatic
+# The upstream document also covers moderation, submissions and site endpoints.
+# Only the operations the SDK wraps are generated; add an operation ID here before wrapping it.
+filter:
+  operations:
+    - get_series_search_v2
+    - get_series_id_v2
+    - get_series_id_similar_v2
+    - get_series_id_readers_also_like_v2
+    - get_series_match_v2
+    - get_source_anilist_id_v1
+    - get_source_my_anime_list_id_v1
+    - get_genres_v1
+    - get_tags_v1
+    - get_my_profile_v1
+    - get_my_library_v2
+    - get_my_library_series_id_v1
+    - post_my_library_series_id_v1
+    - patch_my_library_series_id_v1
+    - delete_my_library_series_id_v1
+    - post_my_library_batch_v1
