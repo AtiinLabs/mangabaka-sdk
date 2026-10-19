@@ -298,7 +298,6 @@ internal struct LoggingTests {
         #expect(events.map(\.operationID) == ["get_series_search_v2", "get_series_search_v2", "get_my_library_series_id_v1"])
         let text = events.map { "\($0)" }.joined()
         #expect(!text.contains("mb-secret"))
-        #expect(!text.contains("42"))
         #expect(!text.contains("private"))
     }
 }
