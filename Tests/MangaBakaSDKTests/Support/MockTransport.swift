@@ -33,7 +33,7 @@ internal struct RecordedRequest: Sendable {
 /// A canned transport result.
 internal enum Stub: Sendable {
     case response(status: Int, headers: [String: String] = [:], body: String)
-    case failure(URLError)
+    case failure(any Error)
 
     internal static func json(_ object: Any, status: Int = 200, headers: [String: String] = [:]) -> Self {
         .response(status: status, headers: headers, body: Fixture.encode(object))

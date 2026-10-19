@@ -134,6 +134,32 @@ internal struct LibraryTests {
     }
 
     @Test
+    internal func writesSucceedOnAny2xxWhateverTheBody() async throws {
+        let transport = MockTransport([
+            .response(status: 200, body: #"{"ok":1}"#),
+            .response(status: 204, body: ""),
+            .response(status: 202, body: "not json")
+        ])
+        let client = makeClient(transport, credential: token)
+
+        try await client.createLibraryEntry(seriesID: 1, LibraryEntryChanges(state: .reading))
+        try await client.deleteLibraryEntry(seriesID: 1)
+        try await client.updateLibraryEntry(seriesID: 1, LibraryEntryChanges(progressChapter: 2))
+
+        #expect(transport.requests.count == 3)
+    }
+
+    @Test
+    internal func libraryDatesRejectDaysThatDoNotExist() {
+        #expect(LibraryDate(year: 2024, month: 2, day: 29)?.description == "2024-02-29")
+        #expect(LibraryDate(year: 2023, month: 2, day: 29) == nil)
+        #expect(LibraryDate(year: 2024, month: 2, day: 30) == nil)
+        #expect(LibraryDate(year: 2024, month: 13, day: 1) == nil)
+        #expect(LibraryDate(year: 2024, month: 4, day: 0) == nil)
+        #expect(LibraryDate(year: 0, month: 1, day: 1) == nil)
+    }
+
+    @Test
     internal func libraryListIncludesSeriesAndLists() async throws {
         let item: [String: Any] = [
             "entry": Fixture.libraryEntry(seriesID: 1995),
@@ -185,6 +211,7 @@ internal struct LibraryTests {
         #expect(request.query("insert_only") == ["true"])
         let body = try #require(try request.jsonBody() as? [[String: Any]])
         #expect(body.map { $0["series_id"] as? Int } == [1, 2])
+        #expect(body.map { Set($0.keys) } == [["series_id", "state"], ["series_id", "rating"]])
         #expect(results == [
             LibraryBatchResult(seriesID: 1, action: .created),
             LibraryBatchResult(seriesID: 2, action: .skipped)

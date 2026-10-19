@@ -44,7 +44,10 @@ public struct MangaBakaConfiguration: Sendable {
 }
 
 /// A credential for library and profile requests.
-public enum MangaBakaCredential: Sendable, Hashable, MangaBakaCredentialProvider {
+///
+/// Its descriptions and mirror never include the token.
+public enum MangaBakaCredential: Sendable, Hashable, MangaBakaCredentialProvider, CustomStringConvertible,
+    CustomDebugStringConvertible, CustomReflectable {
     /// A Personal Access Token (`mb-…`), sent in the `x-api-key` header.
     case personalAccessToken(String)
     /// An OAuth 2 access token, sent as `Authorization: Bearer`.
@@ -52,12 +55,32 @@ public enum MangaBakaCredential: Sendable, Hashable, MangaBakaCredentialProvider
 
     /// Returns this credential.
     public func credential() async throws -> MangaBakaCredential { self }
+
+    /// The kind of credential, without the token.
+    public var description: String {
+        switch self {
+        case .personalAccessToken:
+            return "personalAccessToken(<redacted>)"
+
+        case .oauthAccessToken:
+            return "oauthAccessToken(<redacted>)"
+        }
+    }
+
+    /// The kind of credential, without the token.
+    public var debugDescription: String { description }
+
+    /// A mirror without the token.
+    public var customMirror: Mirror {
+        Mirror(self, children: ["kind": description], displayStyle: .enum)
+    }
 }
 
 /// Supplies the credential for each library or profile request.
 ///
 /// The client asks for a credential before every attempt, so a provider can refresh an expired
-/// OAuth token. Throw to fail the request without sending it.
+/// OAuth token. Throw to fail the request without sending it; the client then throws
+/// ``MangaBakaError/credentialUnavailable(_:)``.
 public protocol MangaBakaCredentialProvider: Sendable {
     /// Returns the credential to send.
     func credential() async throws -> MangaBakaCredential
@@ -104,7 +127,8 @@ public struct MangaBakaRequestEvent: Sendable, Hashable {
     public let operationID: String
     /// The HTTP method.
     public let method: String
-    /// The request path without its query string.
+    /// The request path without its query string. In library paths, series IDs are replaced
+    /// with `{id}`.
     public let path: String
     /// The response status, or `nil` when no response arrived.
     public let statusCode: Int?

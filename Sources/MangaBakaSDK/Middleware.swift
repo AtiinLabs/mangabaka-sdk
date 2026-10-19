@@ -20,12 +20,18 @@ internal struct ErrorMiddleware: ClientMiddleware {
         }
         var data = Data()
         if let responseBody {
-            data = (try? await Data(collecting: responseBody, upTo: Self.maximumBodySize)) ?? Data()
+            do {
+                data = try await Data(collecting: responseBody, upTo: Self.maximumBodySize)
+            } catch {
+                // An oversized or broken body only loses the message; cancellation still propagates.
+                try Task.checkCancellation()
+            }
         }
-        throw MangaBakaError(
-            response: MangaBakaErrorResponse(statusCode: response.status.code, body: data),
+        throw MangaBakaError(response: MangaBakaErrorResponse(
+            statusCode: response.status.code,
+            body: data,
             retryAfter: RetryAfter.seconds(from: response.headerFields, now: Date())
-        )
+        ))
     }
 }
 
@@ -57,7 +63,7 @@ internal struct RetryMiddleware: ClientMiddleware {
                     return (response, responseBody)
                 }
                 let wait = RetryAfter.seconds(from: response.headerFields, now: Date()) ?? backoff(retry)
-                guard wait <= policy.maximumDelay else {
+                guard accepts(wait) else {
                     return (response, responseBody)
                 }
                 delay = wait
@@ -68,7 +74,7 @@ internal struct RetryMiddleware: ClientMiddleware {
                 guard let urlError = underlying as? URLError,
                       Self.retriedNetworkErrors.contains(urlError.code),
                       retry < policy.maximumRetries,
-                      wait <= policy.maximumDelay else {
+                      accepts(wait) else {
                     throw error
                 }
                 delay = wait
@@ -80,6 +86,11 @@ internal struct RetryMiddleware: ClientMiddleware {
 
     private func backoff(_ retry: Int) -> TimeInterval {
         policy.initialDelay * pow(2, Double(retry))
+    }
+
+    /// Rejects waits that are too long or not usable, such as those from a negative or NaN policy.
+    private func accepts(_ wait: TimeInterval) -> Bool {
+        wait.isFinite && wait >= 0 && wait <= policy.maximumDelay
     }
 }
 
@@ -137,7 +148,7 @@ internal struct RequestHeadersMiddleware: ClientMiddleware {
             guard let credentialProvider else {
                 throw MangaBakaError.missingCredentials
             }
-            switch try await credentialProvider.credential() {
+            switch try await credential(from: credentialProvider) {
             case let .personalAccessToken(token):
                 guard let apiKey = Self.apiKey else {
                     preconditionFailure("x-api-key is a valid header name.")
@@ -149,6 +160,18 @@ internal struct RequestHeadersMiddleware: ClientMiddleware {
             }
         }
         return try await next(request, body, baseURL)
+    }
+
+    private func credential(from provider: any MangaBakaCredentialProvider) async throws -> MangaBakaCredential {
+        do {
+            return try await provider.credential()
+        } catch let error as CancellationError {
+            throw error
+        } catch let error as MangaBakaError {
+            throw error
+        } catch {
+            throw MangaBakaError.credentialUnavailable(error)
+        }
     }
 }
 
@@ -166,11 +189,10 @@ internal struct LoggingMiddleware: ClientMiddleware {
         let start = DispatchTime.now().uptimeNanoseconds
         var statusCode: Int?
         defer {
-            let path = request.path.map { String($0.prefix { $0 != "?" }) } ?? ""
             logger.log(MangaBakaRequestEvent(
                 operationID: operationID,
                 method: request.method.rawValue,
-                path: path,
+                path: Self.redactedPath(request.path),
                 statusCode: statusCode,
                 duration: TimeInterval(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000_000
             ))
@@ -178,6 +200,21 @@ internal struct LoggingMiddleware: ClientMiddleware {
         let (response, responseBody) = try await next(request, body, baseURL)
         statusCode = response.status.code
         return (response, responseBody)
+    }
+}
+
+extension LoggingMiddleware {
+    /// The path without its query string. In library and profile paths, numeric segments
+    /// (series IDs) become `{id}` so logs do not reveal what a user tracks.
+    internal static func redactedPath(_ path: String?) -> String {
+        let path = String((path ?? "").prefix { $0 != "?" })
+        guard RequestHeadersMiddleware.requiresCredential(path: path) else {
+            return path
+        }
+        return path
+            .split(separator: "/", omittingEmptySubsequences: false)
+            .map { !$0.isEmpty && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) ? "{id}" : String($0) }
+            .joined(separator: "/")
     }
 }
 

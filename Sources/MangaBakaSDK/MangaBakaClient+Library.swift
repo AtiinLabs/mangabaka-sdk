@@ -59,34 +59,32 @@ extension MangaBakaClient {
     /// Adds a series to the library. Fails with ``MangaBakaError/badRequest(_:)`` and
     /// ``MangaBakaErrorCode/duplicateEntry`` when the series is already in the library.
     ///
-    /// Never retried automatically.
+    /// Never retried automatically. Any 2xx status counts as success. After
+    /// ``MangaBakaError/transport(_:)`` or `CancellationError` the outcome is unknown.
     public func createLibraryEntry(seriesID: Int, _ changes: LibraryEntryChanges) async throws {
         try await call {
-            _ = try await api.postMyLibrarySeriesIdV1(
-                path: .init(seriesId: seriesID),
-                body: .json(changes.createBody)
-            ).created
+            // Unsuccessful statuses throw in `ErrorMiddleware`; any output here is a 2xx.
+            _ = try await api.postMyLibrarySeriesIdV1(path: .init(seriesId: seriesID), body: .json(changes.createBody()))
         }
     }
 
     /// Writes the non-`nil` fields of `changes` to an existing library entry.
     ///
-    /// Never retried automatically.
+    /// Never retried automatically. Any 2xx status counts as success. After
+    /// ``MangaBakaError/transport(_:)`` or `CancellationError` the outcome is unknown.
     public func updateLibraryEntry(seriesID: Int, _ changes: LibraryEntryChanges) async throws {
         try await call {
-            _ = try await api.patchMyLibrarySeriesIdV1(
-                path: .init(seriesId: seriesID),
-                body: .json(changes.updateBody)
-            ).ok
+            _ = try await api.patchMyLibrarySeriesIdV1(path: .init(seriesId: seriesID), body: .json(changes.updateBody()))
         }
     }
 
     /// Removes a series from the library.
     ///
-    /// Never retried automatically.
+    /// Never retried automatically. Any 2xx status counts as success. After
+    /// ``MangaBakaError/transport(_:)`` or `CancellationError` the outcome is unknown.
     public func deleteLibraryEntry(seriesID: Int) async throws {
         try await call {
-            _ = try await api.deleteMyLibrarySeriesIdV1(path: .init(seriesId: seriesID)).ok
+            _ = try await api.deleteMyLibrarySeriesIdV1(path: .init(seriesId: seriesID))
         }
     }
 
@@ -106,7 +104,7 @@ extension MangaBakaClient {
         return try await call {
             let response = try await api.postMyLibraryBatchV1(
                 query: .init(insertOnly: insertOnly ? true : nil),
-                body: .json(items.map { $0.changes.batchBody(seriesID: $0.seriesID) })
+                body: .json(items.map { try $0.changes.batchBody(seriesID: $0.seriesID) })
             ).ok.body.json
             return response.data.map {
                 LibraryBatchResult(seriesID: $0.seriesId, action: LibraryBatchAction(rawValue: $0.action))

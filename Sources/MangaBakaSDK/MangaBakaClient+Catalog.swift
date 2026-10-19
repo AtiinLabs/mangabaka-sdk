@@ -6,7 +6,7 @@ extension MangaBakaClient {
     /// MangaBaka allows 30 uncached searches per minute per IP address.
     public func searchSeries(_ query: SeriesSearchQuery) async throws -> MangaBakaPage<Series> {
         try validate(page: query.page, limit: query.limit, maximumLimit: SeriesSearchQuery.maximumLimit)
-        guard query.page * query.limit <= SeriesSearchQuery.resultWindow else {
+        guard query.page <= SeriesSearchQuery.resultWindow / query.limit else {
             throw MangaBakaError.invalidRequest(
                 "page * limit must not exceed \(SeriesSearchQuery.resultWindow); the deepest page at limit \(query.limit) is \(SeriesSearchQuery.resultWindow / query.limit)."
             )

@@ -14,8 +14,8 @@ public struct MangaBakaClient: Sendable {
 
     /// Creates a client that sends requests through `URLSession`.
     ///
-    /// Catalog responses are cached by the session's `URLCache` for as long as MangaBaka's
-    /// `Cache-Control` header allows. Library and profile responses are not cached.
+    /// The session's `URLCache` keeps catalog responses for as long as MangaBaka's `Cache-Control`
+    /// header allows. MangaBaka marks library and profile responses `no-store`.
     public init(configuration: MangaBakaConfiguration, session: URLSession = .shared) {
         self.init(configuration: configuration, transport: URLSessionTransport(configuration: .init(session: session)))
     }
@@ -23,7 +23,8 @@ public struct MangaBakaClient: Sendable {
     /// Creates a client that sends requests through `transport`, for tests or another HTTP stack.
     public init(configuration: MangaBakaConfiguration, transport: any ClientTransport) {
         self.init(configuration: configuration, transport: transport) { seconds in
-            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            // The retry middleware only passes finite, non-negative waits up to `maximumDelay`.
+            try await Task.sleep(nanoseconds: UInt64(min(seconds, 86_400) * 1_000_000_000))
         }
     }
 
@@ -70,7 +71,8 @@ public struct MangaBakaClient: Sendable {
     }
 
     internal static func publicError(_ error: any Error) -> any Error {
-        let underlying = (error as? ClientError)?.underlyingError ?? error
+        let clientError = error as? ClientError
+        let underlying = clientError?.underlyingError ?? error
         switch underlying {
         case let error as MangaBakaError:
             return error
@@ -81,11 +83,12 @@ public struct MangaBakaClient: Sendable {
         case let error as URLError where error.code == .cancelled:
             return CancellationError()
 
-        case let error as URLError:
-            return MangaBakaError.transport(error)
-
         default:
-            // The generated client reports undecodable bodies and unexpected content types here.
+            // A `ClientError` without a response failed before the server answered. Anything else
+            // is a response the generated client could not decode.
+            if let clientError, clientError.response == nil {
+                return MangaBakaError.transport(underlying)
+            }
             return MangaBakaError.invalidResponse(underlying)
         }
     }

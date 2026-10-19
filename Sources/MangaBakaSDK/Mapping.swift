@@ -31,12 +31,6 @@ internal extension URL {
 }
 
 internal extension LibraryDate {
-    private static let utc: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC") ?? calendar.timeZone
-        return calendar
-    }()
-
     /// MangaBaka returns a day as midnight UTC.
     init?(api date: Date?) {
         guard let date else {
@@ -50,8 +44,11 @@ internal extension LibraryDate {
     }
 
     /// MangaBaka reads the day from a date-time as written, so the day is sent as midnight UTC.
-    var apiDate: Date? {
-        Self.utc.date(from: DateComponents(year: year, month: month, day: day))
+    func apiDate() throws -> Date {
+        guard let date = Self.utc.date(from: DateComponents(year: year, month: month, day: day)) else {
+            throw MangaBakaError.invalidRequest("\(self) is not a valid day.")
+        }
+        return date
     }
 }
 
@@ -197,9 +194,9 @@ internal extension LibraryEntry {
 }
 
 internal extension LibraryEntryChanges {
-    var createBody: Operations.PostMyLibrarySeriesIdV1.Input.Body.JsonPayload {
-        .init(
-            finishDate: finishDate?.apiDate,
+    func createBody() throws -> Operations.PostMyLibrarySeriesIdV1.Input.Body.JsonPayload {
+        try .init(
+            finishDate: finishDate?.apiDate(),
             isPrivate: isPrivate,
             note: note,
             numberOfRereads: numberOfRereads.map(Double.init),
@@ -208,14 +205,14 @@ internal extension LibraryEntryChanges {
             progressVolume: progressVolume,
             rating: rating,
             readLink: readLink,
-            startDate: startDate?.apiDate,
+            startDate: startDate?.apiDate(),
             state: state?.rawValue
         )
     }
 
-    var updateBody: Operations.PatchMyLibrarySeriesIdV1.Input.Body.JsonPayload {
-        .init(
-            finishDate: finishDate?.apiDate,
+    func updateBody() throws -> Operations.PatchMyLibrarySeriesIdV1.Input.Body.JsonPayload {
+        try .init(
+            finishDate: finishDate?.apiDate(),
             isPrivate: isPrivate,
             note: note,
             numberOfRereads: numberOfRereads.map(Double.init),
@@ -224,14 +221,14 @@ internal extension LibraryEntryChanges {
             progressVolume: progressVolume,
             rating: rating,
             readLink: readLink,
-            startDate: startDate?.apiDate,
+            startDate: startDate?.apiDate(),
             state: state?.rawValue
         )
     }
 
-    func batchBody(seriesID: Int) -> Operations.PostMyLibraryBatchV1.Input.Body.JsonPayloadPayload {
-        .init(
-            finishDate: finishDate?.apiDate,
+    func batchBody(seriesID: Int) throws -> Operations.PostMyLibraryBatchV1.Input.Body.JsonPayloadPayload {
+        try .init(
+            finishDate: finishDate?.apiDate(),
             isPrivate: isPrivate,
             note: note,
             numberOfRereads: numberOfRereads.map(Double.init),
@@ -241,7 +238,7 @@ internal extension LibraryEntryChanges {
             rating: rating,
             readLink: readLink,
             seriesId: seriesID,
-            startDate: startDate?.apiDate,
+            startDate: startDate?.apiDate(),
             state: state?.rawValue
         )
     }

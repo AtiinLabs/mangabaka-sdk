@@ -97,17 +97,21 @@ let results = try await client.upsertLibraryEntries([
 ], insertOnly: true)
 ```
 
-`LibraryEntryChanges` sends only the fields you set; the rest stay unchanged. Start and finish
-dates are `LibraryDate` days, so they do not shift between time zones. `LibraryQuery.updatedAfter`
-returns only entries changed since a time, for incremental sync.
+`LibraryEntryChanges` sends only the fields you set; the rest stay unchanged. Fields cannot be
+cleared yet, except rating and progress, where MangaBaka stores `0` as none. Start and finish
+dates are `LibraryDate` days, so they do not shift between time zones; `LibraryDate(year:month:day:)`
+returns `nil` for days that do not exist. `LibraryQuery.updatedAfter` returns only entries changed
+since a time, for incremental sync.
 
 To refresh OAuth tokens, implement `MangaBakaCredentialProvider`. The client asks for a credential
-before each attempt; when MangaBaka answers 401 the call throws `MangaBakaError.unauthorized`.
+before each attempt; if the provider throws, nothing is sent and the call throws
+`MangaBakaError.credentialUnavailable`. When MangaBaka answers 401 the call throws
+`MangaBakaError.unauthorized`. Credentials print as `personalAccessToken(<redacted>)`.
 
 ### Errors, retries and cancellation
 
 Unsuccessful responses throw `MangaBakaError` with the status, MangaBaka's message, its `code`
-(for example `duplicateEntry` or `staleToken`) and any field `issues`.
+(for example `duplicateEntry` or `staleToken`), any field `issues` and the `Retry-After` wait.
 
 `GET` requests are retried after 429, 502, 503 and 504 responses and after timeouts or dropped
 connections: two retries by default, waiting for `Retry-After` when the server sends it and
@@ -115,20 +119,23 @@ backing off exponentially otherwise. A retry that would wait longer than `maximu
 (30 seconds by default) is not made. `POST`, `PATCH` and `DELETE` are never retried. Configure this
 with `MangaBakaRetryPolicy`, or turn it off with `.none`.
 
+A library write succeeds on any 2xx status. If it throws `MangaBakaError.transport` or
+`CancellationError`, the request may or may not have reached MangaBaka: read the entry before
+trying again.
+
 Cancelling the calling task cancels the request and any pending retry and throws `CancellationError`.
 
 ### Caching
 
 The default initializer uses `URLSession.shared`. Its `URLCache` keeps catalog responses for as
-long as MangaBaka's `Cache-Control` header allows. Library and profile responses are sent with
-`no-store` and are not cached. Pass a `URLSession` with its own cache, or any `ClientTransport`, to
-change this.
+long as MangaBaka's `Cache-Control` header allows. MangaBaka marks library and profile responses
+`no-store`. Pass a `URLSession` with its own cache, or any `ClientTransport`, to change this.
 
 ### Logging
 
 Set `MangaBakaConfiguration.logger` to receive one `MangaBakaRequestEvent` per HTTP attempt: the
 operation, method, path, status and duration. Events never contain query strings, headers,
-credentials or bodies.
+credentials or bodies, and series IDs in library paths are replaced with `{id}`.
 
 ## Rate limits
 

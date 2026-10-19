@@ -12,8 +12,24 @@ public struct LibraryDate: Sendable, Hashable, Comparable, CustomStringConvertib
     /// The day of the month, 1–31.
     public let day: Int
 
-    /// Creates a day.
-    public init(year: Int, month: Int, day: Int) {
+    internal static let utc: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? calendar.timeZone
+        return calendar
+    }()
+
+    /// Creates a day, or returns `nil` when the date does not exist, such as February 30.
+    /// - Parameters:
+    ///   - year: The year, 1–9999.
+    ///   - month: The month, 1–12.
+    ///   - day: The day of the month.
+    public init?(year: Int, month: Int, day: Int) {
+        let components = DateComponents(year: year, month: month, day: day)
+        guard (1...9999).contains(year),
+              let date = Self.utc.date(from: components),
+              Self.utc.dateComponents([.year, .month, .day], from: date) == components else {
+            return nil
+        }
         self.year = year
         self.month = month
         self.day = day

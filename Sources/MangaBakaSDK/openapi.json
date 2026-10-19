@@ -23396,25 +23396,6 @@
     ],
     "responses": {
      "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "properties": {
-          "data": {
-           "type": "boolean"
-          },
-          "status": {
-           "type": "number"
-          }
-         },
-         "required": [
-          "status",
-          "data"
-         ],
-         "type": "object"
-        }
-       }
-      },
       "description": "Success"
      },
      "400": {
@@ -23950,25 +23931,6 @@
     },
     "responses": {
      "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "properties": {
-          "data": {
-           "type": "boolean"
-          },
-          "status": {
-           "type": "number"
-          }
-         },
-         "required": [
-          "status",
-          "data"
-         ],
-         "type": "object"
-        }
-       }
-      },
       "description": "Success"
      },
      "400": {
@@ -24211,25 +24173,6 @@
     },
     "responses": {
      "201": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "properties": {
-          "data": {
-           "type": "boolean"
-          },
-          "status": {
-           "type": "number"
-          }
-         },
-         "required": [
-          "status",
-          "data"
-         ],
-         "type": "object"
-        }
-       }
-      },
       "description": "Success"
      },
      "400": {

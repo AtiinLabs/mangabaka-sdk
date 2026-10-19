@@ -15,9 +15,11 @@ OUTPUT = "Sources/MangaBakaSDK/openapi.json"
 
 
 def loosen(node):
-    """Removes `enum` and `additionalProperties: false` in place, keeping each schema's type."""
+    """Removes the `enum` keyword and `additionalProperties: false` in place, keeping each
+    schema's type. Properties named `enum` are kept: only list values are enum keywords."""
     if isinstance(node, dict):
-        node.pop("enum", None)
+        if isinstance(node.get("enum"), list):
+            del node["enum"]
         if node.get("additionalProperties") is False:
             del node["additionalProperties"]
         for value in node.values():
@@ -91,6 +93,15 @@ def patch(spec):
                 schema["type"] = "integer"
             elif isinstance(schema.get("type"), list):
                 schema["type"] = ["integer" if t == "number" else t for t in schema["type"]]
+
+    # 7. Library entry writes report success through the status code; the body is
+    #    `{status, data: boolean}` and carries nothing the SDK uses. Its schema is removed so a
+    #    change to that body cannot turn a write that was applied into a decoding error.
+    for method in ("post", "patch", "delete"):
+        responses = spec["paths"]["/v1/my/library/{series_id}"][method]["responses"]
+        for status, response in responses.items():
+            if status.startswith("2"):
+                response.pop("content", None)
     return spec
 
 

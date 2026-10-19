@@ -83,11 +83,13 @@ internal struct CatalogTests {
         let transport = MockTransport([])
         let client = makeClient(transport)
 
-        let thrown = await error { try await client.searchSeries(SeriesSearchQuery(page: 121, limit: 100)) }
-
-        guard case .invalidRequest? = thrown as? MangaBakaError else {
-            Issue.record("Expected invalidRequest, got \(String(describing: thrown))")
-            return
+        // 120 * 100 is the last page; Int.max / 2 * 100 would overflow if multiplied.
+        for page in [121, Int.max / 2] {
+            let thrown = await error { try await client.searchSeries(SeriesSearchQuery(page: page, limit: 100)) }
+            guard case .invalidRequest? = thrown as? MangaBakaError else {
+                Issue.record("Expected invalidRequest, got \(String(describing: thrown))")
+                return
+            }
         }
         #expect(transport.requests.isEmpty)
     }

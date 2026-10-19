@@ -13,7 +13,7 @@ internal struct ErrorTests {
         let response: MangaBakaErrorResponse?
         switch (status, thrown) {
         case let (400, .badRequest(value)?), let (401, .unauthorized(value)?), let (403, .forbidden(value)?),
-             let (404, .notFound(value)?), let (422, .unprocessableContent(value)?), let (429, .rateLimited(value, _)?),
+             let (404, .notFound(value)?), let (422, .unprocessableContent(value)?), let (429, .rateLimited(value)?),
              let (500, .serverError(value)?), let (503, .serverError(value)?), let (418, .unexpectedStatus(value)?):
             response = value
 
@@ -53,6 +53,67 @@ internal struct ErrorTests {
         }
         #expect(response == MangaBakaErrorResponse(statusCode: 502))
     }
+
+    @Test
+    internal func serverErrorsKeepRetryAfter() async {
+        // 120 seconds is beyond the default 30-second limit, so the client returns the 503 at once.
+        let transport = MockTransport([.response(status: 503, headers: ["Retry-After": "120"], body: "{}")])
+        let client = makeClient(transport)
+
+        let thrown = await error { try await client.series(id: 1) }
+
+        #expect((thrown as? MangaBakaError)?.response?.retryAfter == 120)
+        #expect(transport.requests.count == 1)
+    }
+
+    @Test
+    internal func failingCredentialProviderIsReportedAndNothingIsSent() async {
+        let transport = MockTransport([])
+        let client = makeClient(transport, credential: FailingProvider())
+
+        let thrown = await error { try await client.libraryEntry(seriesID: 1) }
+
+        guard case let .credentialUnavailable(underlying)? = thrown as? MangaBakaError else {
+            Issue.record("Expected credentialUnavailable, got \(String(describing: thrown))")
+            return
+        }
+        #expect(underlying is SignedOut)
+        #expect(transport.requests.isEmpty)
+    }
+
+    @Test
+    internal func failuresWithoutAResponseAreTransportErrors() async {
+        let client = makeClient(MockTransport([.failure(SignedOut())]), credential: MangaBakaCredential.personalAccessToken("mb-x"))
+
+        let thrown = await error { try await client.deleteLibraryEntry(seriesID: 1) }
+
+        guard case let .transport(underlying)? = thrown as? MangaBakaError else {
+            Issue.record("Expected transport, got \(String(describing: thrown))")
+            return
+        }
+        #expect(underlying is SignedOut)
+    }
+
+    @Test
+    internal func credentialDescriptionsHideTheToken() {
+        let credentials = [MangaBakaCredential.personalAccessToken("mb-secret"), .oauthAccessToken("mb-secret")]
+        for credential in credentials {
+            var dumped = ""
+            dump(credential, to: &dumped)
+            let configuration = MangaBakaConfiguration(userAgent: "x", credentialProvider: credential)
+            for text in ["\(credential)", String(reflecting: credential), dumped, "\(configuration)"] {
+                #expect(!text.contains("mb-secret"), "\(text)")
+            }
+        }
+    }
+}
+
+internal struct SignedOut: Error {}
+
+internal struct FailingProvider: MangaBakaCredentialProvider {
+    internal func credential() throws -> MangaBakaCredential {
+        throw SignedOut()
+    }
 }
 
 internal struct RetryTests {
@@ -90,13 +151,26 @@ internal struct RetryTests {
         let thrown = await error { try await client.series(id: 1) }
 
         // The second wait is about an hour, beyond the 30-second limit, so the 429 is returned.
-        guard case let .rateLimited(_, retryAfter)? = thrown as? MangaBakaError else {
+        guard case let .rateLimited(response)? = thrown as? MangaBakaError else {
             Issue.record("Expected rateLimited, got \(String(describing: thrown))")
             return
         }
         #expect(transport.requests.count == 2)
         #expect(await sleeps.delays == [7])
-        #expect((3500...3600).contains(retryAfter ?? 0))
+        #expect((3500...3600).contains(response.retryAfter ?? 0))
+    }
+
+    @Test
+    internal func unusablePolicyValuesDisableRetriesInsteadOfCrashing() async {
+        let transport = MockTransport([.response(status: 503, body: "{}"), .response(status: 503, body: "{}")])
+        let sleeps = SleepRecorder()
+        let policy = MangaBakaRetryPolicy(maximumRetries: 3, initialDelay: -.infinity, maximumDelay: .nan)
+        let client = makeClient(transport, retryPolicy: policy, sleeps: sleeps)
+
+        _ = await error { try await client.series(id: 1) }
+
+        #expect(transport.requests.count == 1)
+        #expect(await sleeps.delays.isEmpty)
     }
 
     @Test
@@ -220,10 +294,11 @@ internal struct LoggingTests {
         // One event per attempt, including the retried one.
         let events = logger.events
         #expect(events.map(\.statusCode) == [503, 200, 200])
-        #expect(events.map(\.path) == ["/v2/series/search", "/v2/series/search", "/v1/my/library/42"])
+        #expect(events.map(\.path) == ["/v2/series/search", "/v2/series/search", "/v1/my/library/{id}"])
         #expect(events.map(\.operationID) == ["get_series_search_v2", "get_series_search_v2", "get_my_library_series_id_v1"])
         let text = events.map { "\($0)" }.joined()
         #expect(!text.contains("mb-secret"))
+        #expect(!text.contains("42"))
         #expect(!text.contains("private"))
     }
 }
