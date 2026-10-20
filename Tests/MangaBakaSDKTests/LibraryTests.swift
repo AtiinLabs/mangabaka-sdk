@@ -96,6 +96,16 @@ internal struct LibraryTests {
     }
 
     @Test
+    internal func anUnsavedPlaceholderEntryIsNil() async throws {
+        var placeholder = Fixture.libraryEntry(seriesID: 42)
+        placeholder["id"] = NSNull()
+        placeholder["state"] = NSNull()
+        let client = makeClient(MockTransport([.json(["status": 200, "data": placeholder])]), credential: token)
+
+        #expect(try await client.libraryEntry(seriesID: 42) == nil)
+    }
+
+    @Test
     internal func createSendsOnlyTheGivenFields() async throws {
         let transport = MockTransport([.json(["status": 201, "data": true], status: 201)])
         let client = makeClient(transport, credential: token)
