@@ -74,9 +74,21 @@ Other catalog calls:
 Library and profile requests need a credential:
 
 - A Personal Access Token (`mb-…`), created in your MangaBaka settings, is sent in the `x-api-key` header.
-- An OAuth 2 access token is sent as `Authorization: Bearer`. The SDK does not run the OAuth flow.
-  MangaBaka's OpenID configuration is at `https://mangabaka.org/.well-known/openid-configuration`
-  (authorization code with PKCE `S256`, scopes `library.read`, `library.write`, `offline_access`, …).
+- An OAuth 2 access token is sent as `Authorization: Bearer`. `MangaBakaOAuth` runs the
+  authorization code flow with PKCE (`S256`) for applications registered on mangabaka.org as
+  public: open the request URL in a browser session, then exchange the callback's code.
+
+```swift
+let oauth = MangaBakaOAuth(clientID: clientID, redirectURI: "myapp://mangabaka-callback")
+let request = oauth.authorizationRequest()  // scopes: openid profile library.read library.write offline_access
+// Open request.url with ASWebAuthenticationSession, then:
+let code = try oauth.authorizationCode(from: callbackURL, matching: request)
+let token = try await oauth.exchangeCode(code, for: request)  // store it, for example in the Keychain
+// Later: try await oauth.refresh(token) before token.expiresAt, and try await oauth.revoke(token) on sign-out.
+```
+
+The API checks access tokens through OpenID Connect userinfo, so a token without the `openid`
+scope is rejected with 401.
 
 ```swift
 let client = MangaBakaClient(configuration: MangaBakaConfiguration(
