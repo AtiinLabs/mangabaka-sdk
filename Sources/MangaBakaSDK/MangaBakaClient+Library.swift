@@ -49,9 +49,6 @@ extension MangaBakaClient {
         do {
             return try await call {
                 let entry = try await api.getMyLibrarySeriesIdV1(path: .init(seriesId: seriesID)).ok.body.json.data
-                // For a series not in the library MangaBaka can answer 200 with an unsaved placeholder,
-                // which has no `id`. Updating it does not create an entry.
-                guard entry.id != nil else { return nil }
                 return LibraryEntry(entry, seriesID: seriesID)
             }
         } catch MangaBakaError.notFound {
