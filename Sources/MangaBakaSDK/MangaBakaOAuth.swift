@@ -12,8 +12,10 @@ import Foundation
 ///    Before ``MangaBakaToken/expiresAt``, or after a 401, call ``refresh(_:)`` and store the result.
 /// 5. On sign-out, call ``revoke(_:)``.
 public struct MangaBakaOAuth: Sendable {
-    /// The scopes a tracker needs: reading and writing the library, and refresh tokens.
-    public static let libraryScopes = ["library.read", "library.write", "offline_access"]
+    /// The scopes a tracker needs. MangaBaka's API checks an access token through OpenID Connect
+    /// userinfo, which requires `openid`; `profile` fills in the profile, the library scopes allow
+    /// reading and writing the library, and `offline_access` adds a refresh token.
+    public static let trackerScopes = ["openid", "profile", "library.read", "library.write", "offline_access"]
 
     private static let authorizeURL = endpoint("https://mangabaka.org/auth/oauth2/authorize")
     private static let tokenURL = endpoint("https://mangabaka.org/auth/oauth2/token")
@@ -47,7 +49,7 @@ public struct MangaBakaOAuth: Sendable {
     }
 
     /// Creates the URL to sign in with, with a fresh code verifier and state.
-    public func authorizationRequest(scopes: [String] = MangaBakaOAuth.libraryScopes) -> MangaBakaAuthorizationRequest {
+    public func authorizationRequest(scopes: [String] = MangaBakaOAuth.trackerScopes) -> MangaBakaAuthorizationRequest {
         let codeVerifier = Self.randomString(length: 64)
         let state = Self.randomString(length: 32)
         var components = URLComponents(url: Self.authorizeURL, resolvingAgainstBaseURL: false)

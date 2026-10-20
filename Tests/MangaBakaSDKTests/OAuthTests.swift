@@ -63,7 +63,7 @@ internal struct OAuthTests {
         #expect(query["response_type"] == "code")
         #expect(query["client_id"] == "client-1")
         #expect(query["redirect_uri"] == "ito://mangabaka-callback")
-        #expect(query["scope"] == "library.read library.write offline_access")
+        #expect(query["scope"] == "openid profile library.read library.write offline_access")
         #expect(query["state"] == request.state)
         #expect(query["code_challenge_method"] == "S256")
         #expect(query["code_challenge"] == expectedChallenge)

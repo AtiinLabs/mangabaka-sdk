@@ -80,12 +80,15 @@ Library and profile requests need a credential:
 
 ```swift
 let oauth = MangaBakaOAuth(clientID: clientID, redirectURI: "myapp://mangabaka-callback")
-let request = oauth.authorizationRequest()  // scopes: library.read library.write offline_access
+let request = oauth.authorizationRequest()  // scopes: openid profile library.read library.write offline_access
 // Open request.url with ASWebAuthenticationSession, then:
 let code = try oauth.authorizationCode(from: callbackURL, matching: request)
 let token = try await oauth.exchangeCode(code, for: request)  // store it, for example in the Keychain
 // Later: try await oauth.refresh(token) before token.expiresAt, and try await oauth.revoke(token) on sign-out.
 ```
+
+The API checks access tokens through OpenID Connect userinfo, so a token without the `openid`
+scope is rejected with 401.
 
 ```swift
 let client = MangaBakaClient(configuration: MangaBakaConfiguration(
